@@ -61,7 +61,10 @@ function parseFrontmatterDates(filePath: string): Record<string, string> {
       const colon = line.indexOf(':');
       if (colon < 1) continue;
       const key = line.slice(0, colon).trim();
-      let val = line.slice(colon + 1).trim().replace(/^['"]|['"]$/g, '');
+      let val = line
+        .slice(colon + 1)
+        .trim()
+        .replace(/^['"]|['"]$/g, '');
       result[key] = val;
     }
     return result;
@@ -101,7 +104,12 @@ const STATIC_ROUTES: Array<{
     changefreq: 'daily',
     priority: '1.0',
   },
-  { route: '/faq', sources: ['src/data/faq.json', 'src/pages/Faq.tsx'], changefreq: 'weekly', priority: '0.8' },
+  {
+    route: '/faq',
+    sources: ['src/data/faq.json', 'src/pages/Faq.tsx'],
+    changefreq: 'weekly',
+    priority: '0.8',
+  },
   { route: '/privacy', sources: ['src/pages/Privacy.tsx'], changefreq: 'weekly', priority: '0.8' },
   {
     route: '/use-cases',
@@ -115,7 +123,12 @@ const STATIC_ROUTES: Array<{
     changefreq: 'weekly',
     priority: '0.8',
   },
-  { route: '/roadmap', sources: ['src/data/roadmap.json', 'src/pages/Roadmap.tsx'], changefreq: 'weekly', priority: '0.8' },
+  {
+    route: '/roadmap',
+    sources: ['src/data/roadmap.json', 'src/pages/Roadmap.tsx'],
+    changefreq: 'weekly',
+    priority: '0.8',
+  },
   {
     route: '/case-studies',
     sources: ['src/data/case-studies.json', 'src/pages/CaseStudies.tsx'],
@@ -132,8 +145,18 @@ const STATIC_ROUTES: Array<{
   { route: '/press', sources: ['src/pages/Press.tsx'], changefreq: 'weekly', priority: '0.8' },
   { route: '/terms', sources: ['src/pages/Terms.tsx'], changefreq: 'weekly', priority: '0.8' },
   { route: '/about', sources: ['src/pages/About.tsx'], changefreq: 'weekly', priority: '0.8' },
-  { route: '/blog', sources: ['src/pages/Blog.tsx', 'src/content/blog'], changefreq: 'weekly', priority: '0.8' },
-  { route: '/chains', sources: ['src/data/chains.json', 'src/pages/Chains.tsx'], changefreq: 'weekly', priority: '0.8' },
+  {
+    route: '/blog',
+    sources: ['src/pages/Blog.tsx', 'src/content/blog'],
+    changefreq: 'weekly',
+    priority: '0.8',
+  },
+  {
+    route: '/chains',
+    sources: ['src/data/chains.json', 'src/pages/Chains.tsx'],
+    changefreq: 'weekly',
+    priority: '0.8',
+  },
   {
     route: '/contributors',
     sources: ['src/pages/Contributors.tsx'],
@@ -202,9 +225,7 @@ function getCaseStudyRoutes(): RouteEntry[] {
         route: `/case-studies/${e.slug}`,
         // prefer the structured integrationDate field; fall back to the git
         // date of the data file itself
-        lastmod:
-          toDateString(e.integrationDate) ??
-          gitLastModified('src/data/case-studies.json'),
+        lastmod: toDateString(e.integrationDate) ?? gitLastModified('src/data/case-studies.json'),
         changefreq: 'weekly',
         priority: '0.7',
       }));
@@ -248,8 +269,7 @@ function getBlogRoutes(): RouteEntry[] {
       const fm = parseFrontmatterDates(join(blogDir, file));
       // Prefer the frontmatter date field (content date), fall back to git
       const lastmod =
-        toDateString(fm.date ?? fm.publishedAt) ??
-        gitLastModified(`src/content/blog/${file}`);
+        toDateString(fm.date ?? fm.publishedAt) ?? gitLastModified(`src/content/blog/${file}`);
       entries.push({ route: `/blog/${slug}`, lastmod, changefreq: 'weekly', priority: '0.8' });
     }
   }

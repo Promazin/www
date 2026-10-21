@@ -100,13 +100,11 @@ describe('gen-rss script', () => {
       },
     ];
     // Posts are expected to be sorted newest-first by the caller (as getPosts does)
-    const sorted = [...posts].sort(
-      (a, b) => Date.parse(b.publishedAt) - Date.parse(a.publishedAt),
-    );
+    const sorted = [...posts].sort((a, b) => Date.parse(b.publishedAt) - Date.parse(a.publishedAt));
     const xml = buildRssFeed(sorted, 'https://usewraith.xyz');
 
     // Must contain the date of the newest post, not today's date
-    expect(xml).toContain('<lastBuildDate>Mon, 15 Sep 2026');
+    expect(xml).toContain('<lastBuildDate>Tue, 15 Sep 2026');
     // Must NOT contain the current year in a way that would change on rebuild
     const lastBuildMatch = xml.match(/<lastBuildDate>(.+?)<\/lastBuildDate>/);
     expect(lastBuildMatch).not.toBeNull();
