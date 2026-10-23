@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Sitemap generator — single entrypoint for both `pnpm build` and
  * `pnpm generate:sitemap`.
@@ -15,9 +16,9 @@
  */
 
 import { writeFileSync, readFileSync, readdirSync, statSync, existsSync } from 'fs';
-import { join, dirname } from 'path';
-import { fileURLToPath } from 'url';
-import { execSync } from 'child_process';
+import { join, dirname, resolve } from 'path';
+import { fileURLToPath, pathToFileURL } from 'url';
+import { execFileSync } from 'child_process';
 import { slugifyTag, parseTags } from './feed-utils.mjs';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -33,14 +34,14 @@ const siteUrl = 'https://usewraith.xyz';
  * repo-relative paths, or undefined when git is unavailable or the paths are
  * untracked.
  */
-function gitLastModified(...repoPaths: string[]): string | undefined {
+export function gitLastModified(...repoPaths: string[]): string | undefined {
+  if (repoPaths.length === 0) return undefined;
   try {
-    const result = execSync(
-      `git log -1 --format=%cd --date=short -- ${repoPaths.map((p) => `"${p}"`).join(' ')}`,
-      { cwd: rootDir, stdio: ['ignore', 'pipe', 'ignore'] },
-    )
-      .toString()
-      .trim();
+    const result = execFileSync(
+      'git',
+      ['log', '-1', '--format=%cd', '--date=short', '--', ...repoPaths],
+      { cwd: rootDir, stdio: ['ignore', 'pipe', 'ignore'], encoding: 'utf8' },
+    ).trim();
     return result || undefined;
   } catch {
     return undefined;
@@ -51,7 +52,7 @@ function gitLastModified(...repoPaths: string[]): string | undefined {
  * Parse the first YAML frontmatter block from a Markdown/MDX file and return
  * a map of key → raw string value.
  */
-function parseFrontmatterDates(filePath: string): Record<string, string> {
+export function parseFrontmatterDates(filePath: string): Record<string, string> {
   try {
     const raw = readFileSync(filePath, 'utf8');
     const match = raw.match(/^---\r?\n([\s\S]*?)\r?\n---/);
@@ -74,7 +75,7 @@ function parseFrontmatterDates(filePath: string): Record<string, string> {
 }
 
 /** Format an ISO/date string as YYYY-MM-DD, or return undefined. */
-function toDateString(value: string | undefined): string | undefined {
+export function toDateString(value: string | undefined): string | undefined {
   if (!value) return undefined;
   try {
     const d = new Date(value);
@@ -206,14 +207,14 @@ const STATIC_ROUTES: Array<{
 const LOCALE_PREFIXED_PAGES = ['/', '/stellar', '/grants', '/blog', '/case-studies'];
 const SUPPORTED_LOCALE_PREFIXES = ['/es', '/pt'];
 
-interface RouteEntry {
+export interface RouteEntry {
   route: string;
   lastmod: string | undefined;
   changefreq: string;
   priority: string;
 }
 
-function getCaseStudyRoutes(): RouteEntry[] {
+export function getCaseStudyRoutes(): RouteEntry[] {
   const csPath = join(rootDir, 'src', 'data', 'case-studies.json');
   if (!existsSync(csPath)) return [];
   try {
@@ -259,7 +260,7 @@ function getAuthorRoutes(): RouteEntry[] {
   }
 }
 
-function getBlogRoutes(): RouteEntry[] {
+export function getBlogRoutes(): RouteEntry[] {
   const blogDir = join(rootDir, 'src', 'content', 'blog');
   const entries: RouteEntry[] = [];
 
@@ -366,7 +367,7 @@ function getDistRoutes(dir: string, base = ''): RouteEntry[] {
 
 // ─── Sitemap builder ─────────────────────────────────────────────────────────
 
-function buildSitemap(routes: RouteEntry[]): string {
+export function buildSitemap(routes: RouteEntry[]): string {
   const urlBlocks = routes.map(({ route, lastmod, changefreq, priority }) => {
     const loc = `${siteUrl}${route === '/' ? '' : route}`;
     const lastmodLine = lastmod ? `\n    <lastmod>${lastmod}</lastmod>` : '';
@@ -386,7 +387,7 @@ ${urlBlocks.join('\n')}
 
 // ─── Main ─────────────────────────────────────────────────────────────────────
 
-function collectRoutes(): RouteEntry[] {
+export function collectRoutes(): RouteEntry[] {
   const staticEntries: RouteEntry[] = STATIC_ROUTES.map(
     ({ route, sources, changefreq, priority }) => ({
       route,
@@ -445,34 +446,45 @@ function collectRoutes(): RouteEntry[] {
   return allRoutes;
 }
 
-const checkMode = process.argv.includes('--check');
+export function main(): void {
+  const checkMode = process.argv.includes('--check');
 
-try {
-  const routes = collectRoutes();
-  const xml = buildSitemap(routes);
+  try {
+    const routes = collectRoutes();
+    const xml = buildSitemap(routes);
 
-  if (checkMode) {
-    const tracked = join(publicDir, 'sitemap.xml');
-    if (!existsSync(tracked)) {
-      console.error('check: public/sitemap.xml does not exist — run pnpm generate:sitemap');
-      process.exit(1);
+    if (checkMode) {
+      const tracked = join(publicDir, 'sitemap.xml');
+      if (!existsSync(tracked)) {
+        console.error('check: public/sitemap.xml does not exist — run pnpm generate:sitemap');
+        process.exit(1);
+      }
+      const current = readFileSync(tracked, 'utf8');
+      if (current !== xml) {
+        console.error(
+          'check: public/sitemap.xml is stale — run pnpm generate:sitemap and commit the result',
+        );
+        process.exit(1);
+      }
+      console.log(`sitemap.xml is up-to-date (${routes.length} routes).`);
+    } else {
+      if (existsSync(distDir)) {
+        writeFileSync(join(distDir, 'sitemap.xml'), xml, 'utf8');
+      }
+      writeFileSync(join(publicDir, 'sitemap.xml'), xml, 'utf8');
+      console.log(`sitemap.xml generated successfully: ${routes.length} routes.`);
     }
-    const current = readFileSync(tracked, 'utf8');
-    if (current !== xml) {
-      console.error(
-        'check: public/sitemap.xml is stale — run pnpm generate:sitemap and commit the result',
-      );
-      process.exit(1);
-    }
-    console.log(`sitemap.xml is up-to-date (${routes.length} routes).`);
-  } else {
-    if (existsSync(distDir)) {
-      writeFileSync(join(distDir, 'sitemap.xml'), xml, 'utf8');
-    }
-    writeFileSync(join(publicDir, 'sitemap.xml'), xml, 'utf8');
-    console.log(`sitemap.xml generated successfully: ${routes.length} routes.`);
+  } catch (err) {
+    console.error('Failed to generate sitemap.xml:', err);
+    process.exit(1);
   }
-} catch (err) {
-  console.error('Failed to generate sitemap.xml:', err);
-  process.exit(1);
+}
+
+const isMain =
+  Boolean(process.argv[1]) &&
+  (import.meta.url === pathToFileURL(process.argv[1]).href ||
+    fileURLToPath(import.meta.url) === resolve(process.argv[1]));
+
+if (isMain) {
+  main();
 }

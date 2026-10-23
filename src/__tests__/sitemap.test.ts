@@ -11,44 +11,12 @@
  */
 
 import { describe, expect, it } from 'vitest';
-
-// ─── Inline the helpers we need so the test has no side effects ───────────────
-
-function toDateString(value: string | undefined): string | undefined {
-  if (!value) return undefined;
-  try {
-    const d = new Date(value);
-    if (isNaN(d.getTime())) return undefined;
-    return d.toISOString().split('T')[0];
-  } catch {
-    return undefined;
-  }
-}
-
-interface RouteEntry {
-  route: string;
-  lastmod: string | undefined;
-  changefreq: string;
-  priority: string;
-}
-
-function buildSitemap(routes: RouteEntry[]): string {
-  const urlBlocks = routes.map(({ route, lastmod, changefreq, priority }) => {
-    const loc = `https://usewraith.xyz${route === '/' ? '' : route}`;
-    const lastmodLine = lastmod ? `\n    <lastmod>${lastmod}</lastmod>` : '';
-    return `  <url>
-    <loc>${loc}</loc>${lastmodLine}
-    <changefreq>${changefreq}</changefreq>
-    <priority>${priority}</priority>
-  </url>`;
-  });
-
-  return `<?xml version="1.0" encoding="UTF-8"?>
-<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-${urlBlocks.join('\n')}
-</urlset>
-`;
-}
+import {
+  buildSitemap,
+  gitLastModified,
+  toDateString,
+  type RouteEntry,
+} from '../../scripts/sitemap';
 
 // ─── Tests ────────────────────────────────────────────────────────────────────
 
@@ -114,5 +82,46 @@ describe('toDateString helper', () => {
     expect(toDateString('not-a-date')).toBeUndefined();
     expect(toDateString('')).toBeUndefined();
     expect(toDateString(undefined)).toBeUndefined();
+  });
+});
+
+describe('gitLastModified helper', () => {
+  it('returns a short date string for tracked repository files', () => {
+    const date = gitLastModified('package.json');
+    expect(date).toBeDefined();
+    expect(date).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+  });
+
+  it('returns undefined for non-existent or untracked files', () => {
+    expect(gitLastModified('src/content/blog/non-existent-blog-post-xyz.md')).toBeUndefined();
+  });
+
+  it('returns undefined when called without arguments', () => {
+    expect(gitLastModified()).toBeUndefined();
+  });
+
+  it('safely handles filenames with quotes and shell metacharacters without throwing', () => {
+    const maliciousPaths = [
+      'src/content/blog/"; touch /tmp/pwned; #.md',
+      "src/content/blog/test'; touch /tmp/pwned; '.md",
+      'src/content/blog/$(touch /tmp/pwned).md',
+      'src/content/blog/`touch /tmp/pwned`.md',
+      'src/content/blog/test.md; touch /tmp/pwned',
+      'src/content/blog/test.md && touch /tmp/pwned',
+      'src/content/blog/test.md | touch /tmp/pwned',
+      'src/content/blog/test.md > /tmp/pwned',
+    ];
+
+    for (const p of maliciousPaths) {
+      expect(gitLastModified(p)).toBeUndefined();
+    }
+  });
+
+  it('handles multiple paths where one contains shell metacharacters', () => {
+    const maliciousPath = 'src/content/blog/"; touch /tmp/pwned; #.md';
+    const result = gitLastModified('package.json', maliciousPath);
+    if (result) {
+      expect(result).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    }
   });
 });
